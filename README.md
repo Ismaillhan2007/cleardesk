@@ -17,8 +17,10 @@ git config core.hooksPath .githooks
 # 2. Build & run unit/security tests
 swift test
 
-# 3. Launch ClearDesk
-swift run ClearDeskApp
+# 3. Build & install the standalone macOS .app bundle
+./scripts/build_app.sh
+cp -R dist/ClearDesk.app /Applications/
+open /Applications/ClearDesk.app
 ```
 
 > **macOS Permissions:** On first launch, macOS will prompt you to grant ClearDesk access to your **Desktop** folder.

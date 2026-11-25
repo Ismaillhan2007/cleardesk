@@ -33,7 +33,8 @@ DerivedData/
 *.perspectivev3
 *.xcuserstate
 
-# Local App Runtime Data
+# Local App Runtime Data & Packaged Build Output
 DesktopVault/
+dist/
 *.jsonl
 state.json
