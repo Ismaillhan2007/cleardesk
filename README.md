@@ -1,32 +1,82 @@
 # ClearDesk
 
-A lightweight, native macOS SwiftUI app that keeps your `~/Desktop` spotless while giving you instant, Finder-like access to every file and folder.
+**A clean, native macOS app that keeps your Desktop spotless while keeping every file and folder one click away.**
 
-## How It Works
-- **Live Mirror (`~/Desktop`):** Watches your Desktop in real time via macOS `FSEvents` with a 2-second stability debounce so newly created folders and active downloads are never interrupted.
-- **Instant Vault (`~/DesktopVault`):** One click on **Sweep Desktop** (or optional **Auto-Sweep**) atomically moves unpinned Desktop items into `~/DesktopVault` in milliseconds with zero disk duplication.
-- **Native macOS Experience:** Translucent sidebar, unified toolbar, real Finder icons, double-click to open, **Spacebar** for native Quick Look, right-click context menus, and a quiet Menu Bar companion.
-- **1-Click Undo & Restore:** Every sweep is logged atomically so you can undo an entire sweep or restore any folder back to your Desktop anytime.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Platform: macOS 14+](https://img.shields.io/badge/Platform-macOS%2014%2B-black)
+![Swift 6](https://img.shields.io/badge/Swift-6.0-orange)
+![100% Offline](https://img.shields.io/badge/Network-100%25%20Offline-brightgreen)
+![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen)
 
-## Quick Start
+---
 
+## Why ClearDesk?
+
+Most people drop screenshots, folders, and PDFs onto their Desktop and end up with visual clutter—yet moving them away makes them hard to find (especially with Finder's slow search).
+
+**ClearDesk** solves this cleanly using **Live Mirror + Atomic Vault**:
+- **Live Mirror (`~/Desktop`):** Watches your Desktop in real time via macOS `FSEvents` with a 2-second stability debounce so newly created folders and in-progress downloads are never interrupted.
+- **Instant Atomic Sweep (`~/DesktopVault`):** Click **Sweep Desktop** (or enable **Auto-Sweep**) to move unpinned Desktop items into `~/DesktopVault` in under 1 ms using APFS atomic renames—zero disk space duplicated.
+- **Fast Ranked Search (`⌘F`):** Searches both top-level and nested files/folders across Desktop and Vault with exact, prefix, word-boundary, multi-word token, and fuzzy matching.
+- **Native macOS Experience:** Built in pure SwiftUI + AppKit/QuickLookUI—translucent sidebar, real Finder icons, double-click to open, **Spacebar** for Quick Look, right-click context menus, and a quiet Menu Bar companion.
+- **Pin & 1-Click Undo:** Pin active folders so they stay on Desktop during sweeps, restore any vaulted file back to Desktop anytime, or undo an entire sweep in one click.
+
+---
+
+## Security & Trust
+
+ClearDesk is **open-source under the MIT License** so anyone can inspect every line of code before building it:
+- **100% Offline:** Zero network requests, zero analytics, zero telemetry.
+- **Zero Third-Party Packages:** Uses only native Apple macOS frameworks (`Foundation`, `SwiftUI`, `AppKit`, `CoreServices`, `Quartz`).
+- **Strict Boundary Guard (`PathGuard`):** Enforces canonical containment inside `~/Desktop` and `~/DesktopVault`, blocks path traversal and symlink escapes, skips temporary downloads and `.icloud` stubs, and never silently overwrites existing files.
+- **Owner-Only Permissions:** Vault and local metadata use `0700` / `0600` POSIX permissions.
+
+Read [SECURITY.md](SECURITY.md) and [docs/SECURITY.md](docs/SECURITY.md) for the full security model.
+
+---
+
+## Install on Your Mac
+
+### Requirements
+- **macOS 14.0 (Sonoma)** or later
+- **Xcode Command Line Tools** (`xcode-select --install`)
+
+### Build & Install (`ClearDesk.app`)
 ```bash
-# 1. Enable the local pre-commit security hook
-git config core.hooksPath .githooks
+# 1. Clone the repository
+git clone https://github.com/Ismaillhan2007/cleardesk.git
+cd cleardesk
 
-# 2. Build & run unit/security tests
-swift test
-
-# 3. Build & install the standalone macOS .app bundle
+# 2. Build the standalone native ClearDesk.app bundle
 ./scripts/build_app.sh
+
+# 3. Install to Applications and launch
 cp -R dist/ClearDesk.app /Applications/
 open /Applications/ClearDesk.app
 ```
 
-> **macOS Permissions:** On first launch, macOS will prompt you to grant ClearDesk access to your **Desktop** folder.
+You can now launch **ClearDesk** anytime from **Spotlight (`⌘Space` → ClearDesk)**, **Applications**, or your **Dock**—no terminal required.
 
-## Documentation & Agent Guides
-- **[AGENTS.md](AGENTS.md)** — Rules and architecture map for AI coding agents.
-- **[docs/STACK_AND_PRINCIPLES.md](docs/STACK_AND_PRINCIPLES.md)** — Tech stack, Apple HIG rules, and engineering principles.
-- **[docs/SECURITY.md](docs/SECURITY.md)** — Cybersecurity protection layers, `.env` hygiene, and filesystem safety invariants.
-- **[docs/IMPLEMENTATION_STEPS.md](docs/IMPLEMENTATION_STEPS.md)** — Phased implementation plan and roadmap.
+> **First Launch Permission:** macOS will prompt *"ClearDesk would like to access files in your Desktop folder."* Click **Allow** so live Desktop syncing and sweeping work.
+
+---
+
+## Development & Testing
+
+```bash
+# Enable the local pre-commit secret & .env guard
+git config core.hooksPath .githooks
+
+# Run all core engine, search, and security unit tests
+swift test
+```
+
+## Documentation
+- **[AGENTS.md](AGENTS.md)** — Architecture map and engineering rules.
+- **[docs/STACK_AND_PRINCIPLES.md](docs/STACK_AND_PRINCIPLES.md)** — Tech stack, Apple HIG rules, and coding principles.
+- **[docs/SECURITY.md](docs/SECURITY.md)** — Cybersecurity protection layers and `.env` hardening.
+- **[docs/IMPLEMENTATION_STEPS.md](docs/IMPLEMENTATION_STEPS.md)** — Implementation milestones and roadmap.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — How to contribute.
+
+## License
+Released under the [MIT License](LICENSE).
