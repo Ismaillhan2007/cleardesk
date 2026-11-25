@@ -1,0 +1,39 @@
+# Environment & Secret Files (NEVER COMMIT)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.cer
+*.crt
+*.mobileprovision
+*.secrets
+secrets.json
+
+# macOS System Files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Swift Package Manager & Xcode
+.build/
+.swiftpm/
+Packages/
+xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+*.moved-aside
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+
+# Local App Runtime Data
+DesktopVault/
+*.jsonl
+state.json

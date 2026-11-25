@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# ClearDesk Pre-Commit Cybersecurity Guard
+# Prevents accidental commits of .env files, private keys, or credentials.
+
+set -euo pipefail
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [ -z "$STAGED_FILES" ]; then
+  exit 0
+fi
+
+# 1. Block forbidden filenames (.env, private keys, certificates)
+while IFS= read -r file; do
+  case "$file" in
+    .env|.env.*|*.pem|*.key|*.p12|*.mobileprovision|secrets.json)
+      if [ "$file" != ".env.example" ]; then
+        echo "[SECURITY BLOCK] Refusing to commit sensitive file: $file"
+        echo "Remove it from staging with: git reset HEAD \"$file\""
+        exit 1
+      fi
+      ;;
+  esac
+done <<< "$STAGED_FILES"
+
+# 2. Scan staged diff additions for common secret patterns
+DIFF_ADDED=$(git diff --cached --unified=0 -- ':(exclude).githooks/pre-commit' ':(exclude)docs/SECURITY.md' | grep -E '^\+[^+]' || true)
+
+SECRET_REGEX='(ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})'
+
+if echo "$DIFF_ADDED" | grep -Eq "$SECRET_REGEX"; then
+  echo "[SECURITY BLOCK] Potential secret or private key detected in staged changes."
+  echo "Inspect your staged diff with: git diff --cached"
+  exit 1
+fi
+
+exit 0
