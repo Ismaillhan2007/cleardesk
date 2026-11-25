@@ -37,17 +37,22 @@ Read [SECURITY.md](SECURITY.md) and [docs/SECURITY.md](docs/SECURITY.md) for the
 
 ## Install on Your Mac
 
-### Requirements
-- **macOS 14.0 (Sonoma)** or later
-- **Xcode Command Line Tools** (`xcode-select --install`)
+### Option 1: Direct Download (`.dmg` Installer)
+1. Download **`ClearDesk-1.0.0.dmg`** from the **[Latest Release](https://github.com/Ismaillhan2007/cleardesk/releases/latest)**.
+2. Open the `.dmg` and drag **ClearDesk** into **Applications**.
+3. Launch **ClearDesk** from **Spotlight (`⌘Space` → ClearDesk)** or **Applications**.
 
-### Build & Install (`ClearDesk.app`)
+> **First-Launch Note (Ad-Hoc Signed Open-Source Build):** Because this indie open-source release is ad-hoc signed rather than Apple-notarized, macOS Gatekeeper may ask you to confirm on first launch. Open **Applications**, **right-click ClearDesk → Open**, or run `xattr -cr /Applications/ClearDesk.app`. You can also verify the download with `shasum -a 256 -c ClearDesk-1.0.0.dmg.sha256`, or build directly from source below.
+
+### Option 2: Build From Source
+**Requirements:** macOS 14.0+ (Sonoma/Sequoia) and Xcode Command Line Tools (`xcode-select --install`).
+
 ```bash
 # 1. Clone the repository
 git clone https://github.com/Ismaillhan2007/cleardesk.git
 cd cleardesk
 
-# 2. Build the standalone native ClearDesk.app bundle
+# 2. Build ClearDesk.app (or ./scripts/build_dmg.sh 1.0.0 for a .dmg)
 ./scripts/build_app.sh
 
 # 3. Install to Applications and launch
@@ -55,9 +60,7 @@ cp -R dist/ClearDesk.app /Applications/
 open /Applications/ClearDesk.app
 ```
 
-You can now launch **ClearDesk** anytime from **Spotlight (`⌘Space` → ClearDesk)**, **Applications**, or your **Dock**—no terminal required.
-
-> **First Launch Permission:** macOS will prompt *"ClearDesk would like to access files in your Desktop folder."* Click **Allow** so live Desktop syncing and sweeping work.
+> **Desktop Permission:** On first launch, macOS will prompt *"ClearDesk would like to access files in your Desktop folder."* Click **Allow** so live Desktop syncing and sweeping work.
 
 ---
 
