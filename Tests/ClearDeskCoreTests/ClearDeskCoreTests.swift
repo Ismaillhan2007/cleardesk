@@ -123,4 +123,69 @@ struct ClearDeskCoreTests {
         let perms = (attrs[.posixPermissions] as? NSNumber)?.intValue
         #expect(perms == 0o700)
     }
+
+    @Test("Search finds top-level and nested Desktop & Vault files with relevance ranking")
+    func searchFindsTopLevelAndNestedFilesWithRanking() throws {
+        let env = try makeIsolatedEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.tempRoot) }
+
+        // Top-level Desktop folder + nested file
+        let taxesDir = env.desktop.appendingPathComponent("Taxes 2025")
+        try FileManager.default.createDirectory(at: taxesDir, withIntermediateDirectories: true)
+        try Data("w2".utf8).write(to: taxesDir.appendingPathComponent("W2_Form_Final.pdf"))
+
+        // Top-level Desktop files for ranking checks
+        try Data("a".utf8).write(to: env.desktop.appendingPathComponent("Roadmap.pdf"))
+        try Data("b".utf8).write(to: env.desktop.appendingPathComponent("Q4_Product_Roadmap_2026.pdf"))
+
+        // Nested Vault file
+        let archiveDir = env.vault.appendingPathComponent("Client Archive")
+        try FileManager.default.createDirectory(at: archiveDir, withIntermediateDirectories: true)
+        try Data("c".utf8).write(to: archiveDir.appendingPathComponent("Invoice_Nov.pdf"))
+
+        // 1. Exact stem ranks above longer substring match
+        let roadmapResults = env.engine.search("roadmap")
+        #expect(roadmapResults.count == 2)
+        #expect(roadmapResults.first?.name == "Roadmap.pdf")
+
+        // 2. Multi-word token match works across underscores/spaces in any order
+        let tokenResults = env.engine.search("2026 q4 roadmap")
+        #expect(tokenResults.first?.name == "Q4_Product_Roadmap_2026.pdf")
+
+        // 3. Nested Desktop file found with parent path context
+        let nestedDesktop = env.engine.search("w2")
+        #expect(nestedDesktop.count == 1)
+        #expect(nestedDesktop.first?.name == "W2_Form_Final.pdf")
+        #expect(nestedDesktop.first?.relativeParentPath == "Taxes 2025")
+
+        // 4. Nested Vault file found via parent + filename tokens
+        let nestedVault = env.engine.search("client invoice")
+        #expect(nestedVault.count == 1)
+        #expect(nestedVault.first?.name == "Invoice_Nov.pdf")
+        #expect(nestedVault.first?.relativeParentPath == "Client Archive")
+
+        // 5. Folder search finds folder directly by name
+        let folderResults = env.engine.search("taxes")
+        #expect(folderResults.contains(where: { $0.name == "Taxes 2025" && $0.kind == .folder }))
+    }
+
+    @Test("Recursive search never traverses symlinks outside Desktop or heavy build dirs")
+    func recursiveSearchRespectsSecurityBoundaries() throws {
+        let env = try makeIsolatedEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.tempRoot) }
+
+        let outsideDir = env.tempRoot.appendingPathComponent("OutsideSecretDir")
+        try FileManager.default.createDirectory(at: outsideDir, withIntermediateDirectories: true)
+        try Data("top-secret".utf8).write(to: outsideDir.appendingPathComponent("Passwords.txt"))
+
+        let symlinkOnDesktop = env.desktop.appendingPathComponent("LinkToOutside")
+        try FileManager.default.createSymbolicLink(at: symlinkOnDesktop, withDestinationURL: outsideDir)
+
+        let nodeModules = env.desktop.appendingPathComponent("Project/node_modules")
+        try FileManager.default.createDirectory(at: nodeModules, withIntermediateDirectories: true)
+        try Data("js".utf8).write(to: nodeModules.appendingPathComponent("hidden_dep.js"))
+
+        #expect(env.engine.search("Passwords").isEmpty)
+        #expect(env.engine.search("hidden_dep").isEmpty)
+    }
 }

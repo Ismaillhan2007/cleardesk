@@ -76,6 +76,37 @@ public final class FileVaultEngine: @unchecked Sendable {
         }
     }
 
+    /// Recursively indexes Desktop and Vault (skipping symlinks, packages, and heavy build dirs) for instant search.
+    public func listSearchableItems(settlingNames: Set<String> = [], maxDepth: Int = 5) -> [DeskItem] {
+        let state = transactionLog.loadState()
+        let desktopItems = scanRecursively(
+            root: desktopURL,
+            current: desktopURL,
+            relativeParent: nil,
+            depth: 0,
+            maxDepth: maxDepth,
+            location: .desktop,
+            pinnedNames: state.pinnedFileNames,
+            settlingNames: settlingNames
+        )
+        let vaultItems = scanRecursively(
+            root: vaultURL,
+            current: vaultURL,
+            relativeParent: nil,
+            depth: 0,
+            maxDepth: maxDepth,
+            location: .vault,
+            pinnedNames: [],
+            settlingNames: []
+        )
+        return desktopItems + vaultItems
+    }
+
+    public func search(_ query: String, settlingNames: Set<String> = [], maxDepth: Int = 5) -> [DeskItem] {
+        let index = listSearchableItems(settlingNames: settlingNames, maxDepth: maxDepth)
+        return SearchEngine.search(query, in: index)
+    }
+
     /// Moves all settled, unpinned, non-transient Desktop items into the Vault atomically.
     @discardableResult
     public func sweepDesktop(settlingNames: Set<String> = []) throws -> SweepBatch {
@@ -213,5 +244,96 @@ public final class FileVaultEngine: @unchecked Sendable {
                 isPackage: isPkg
             )
         }
+    }
+
+    private static let skippedRecursiveDirectories: Set<String> = [
+        ".git",
+        "node_modules",
+        ".build",
+        ".swiftpm",
+        "DerivedData",
+        "__pycache__",
+        ".venv",
+        "venv"
+    ]
+
+    private func scanRecursively(
+        root: URL,
+        current: URL,
+        relativeParent: String?,
+        depth: Int,
+        maxDepth: Int,
+        location: DeskLocation,
+        pinnedNames: Set<String>,
+        settlingNames: Set<String>
+    ) -> [DeskItem] {
+        guard depth <= maxDepth else { return [] }
+
+        let keys: [URLResourceKey] = [
+            .isDirectoryKey,
+            .isPackageKey,
+            .isSymbolicLinkKey,
+            .fileSizeKey,
+            .contentModificationDateKey,
+            .isHiddenKey
+        ]
+
+        guard let urls = try? fileManager.contentsOfDirectory(
+            at: current,
+            includingPropertiesForKeys: keys,
+            options: [.skipsSubdirectoryDescendants]
+        ) else {
+            return []
+        }
+
+        var results: [DeskItem] = []
+        for url in urls {
+            if pathGuard.isIgnoredTransientFile(url: url) {
+                continue
+            }
+            let values = try? url.resourceValues(forKeys: Set(keys))
+            if values?.isHidden == true {
+                continue
+            }
+
+            let isDir = values?.isDirectory ?? false
+            let isPkg = values?.isPackage ?? false
+            let isSymlink = values?.isSymbolicLink ?? false
+            let size = Int64(values?.fileSize ?? 0)
+            let modified = values?.contentModificationDate ?? Date()
+            let name = url.lastPathComponent
+            let kind = DeskItem.classifyKind(url: url, isDirectory: isDir, isPackage: isPkg)
+
+            let isTopLevel = (depth == 0)
+            let item = DeskItem(
+                name: name,
+                url: url.standardizedFileURL,
+                kind: kind,
+                location: location,
+                byteSize: size,
+                modifiedAt: modified,
+                isPinned: isTopLevel && location == .desktop && pinnedNames.contains(name),
+                isSettling: isTopLevel && location == .desktop && settlingNames.contains(name),
+                isPackage: isPkg,
+                relativeParentPath: relativeParent
+            )
+            results.append(item)
+
+            // Recurse into normal directories (never into symlinks, macOS packages, or heavy dependency dirs)
+            if isDir && !isPkg && !isSymlink && !Self.skippedRecursiveDirectories.contains(name) {
+                let nextParent = relativeParent.map { "\($0)/\(name)" } ?? name
+                results.append(contentsOf: scanRecursively(
+                    root: root,
+                    current: url,
+                    relativeParent: nextParent,
+                    depth: depth + 1,
+                    maxDepth: maxDepth,
+                    location: location,
+                    pinnedNames: pinnedNames,
+                    settlingNames: settlingNames
+                ))
+            }
+        }
+        return results
     }
 }

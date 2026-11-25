@@ -34,6 +34,7 @@ final class ClearDeskViewModel {
     private var autoSweepTask: Task<Void, Never>?
 
     var items: [DeskItem] = []
+    var searchableItems: [DeskItem] = []
     var selectedSection: SidebarSection = .all
     var selectedItemID: DeskItem.ID?
     var searchText: String = ""
@@ -64,7 +65,12 @@ final class ClearDeskViewModel {
 
     var selectedItem: DeskItem? {
         guard let selectedItemID else { return nil }
-        return items.first { $0.id == selectedItemID }
+        return filteredItems.first { $0.id == selectedItemID }
+            ?? items.first { $0.id == selectedItemID }
+    }
+
+    var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     func count(for section: SidebarSection) -> Int {
@@ -79,11 +85,16 @@ final class ClearDeskViewModel {
     }
 
     var filteredItems: [DeskItem] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return items.filter { item in
-            if !query.isEmpty && !item.name.lowercased().contains(query) {
-                return false
-            }
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pool: [DeskItem]
+        if query.isEmpty {
+            pool = items
+        } else {
+            let source = searchableItems.isEmpty ? items : searchableItems
+            pool = SearchEngine.search(query, in: source)
+        }
+
+        return pool.filter { item in
             switch selectedSection {
             case .all: return true
             case .desktop: return item.location == .desktop
@@ -96,10 +107,22 @@ final class ClearDeskViewModel {
     }
 
     func refresh() {
-        items = engine.listItems(settlingNames: settlingNames)
+        let currentSettling = settlingNames
+        items = engine.listItems(settlingNames: currentSettling)
         canUndo = engine.canUndo
-        if let selectedItemID, !items.contains(where: { $0.id == selectedItemID }) {
+        if let selectedItemID,
+           !items.contains(where: { $0.id == selectedItemID }),
+           !searchableItems.contains(where: { $0.id == selectedItemID }) {
             self.selectedItemID = nil
+        }
+
+        // Refresh recursive search index off the main thread so UI stays instant.
+        let engineRef = engine
+        Task.detached(priority: .utility) {
+            let indexed = engineRef.listSearchableItems(settlingNames: currentSettling)
+            await MainActor.run { [weak self] in
+                self?.searchableItems = indexed
+            }
         }
     }
 

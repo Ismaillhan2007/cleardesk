@@ -24,6 +24,7 @@ public struct DeskItem: Identifiable, Hashable, Sendable {
     public let isPinned: Bool
     public let isSettling: Bool
     public let isPackage: Bool
+    public let relativeParentPath: String?
 
     public init(
         name: String,
@@ -34,7 +35,8 @@ public struct DeskItem: Identifiable, Hashable, Sendable {
         modifiedAt: Date,
         isPinned: Bool,
         isSettling: Bool,
-        isPackage: Bool
+        isPackage: Bool,
+        relativeParentPath: String? = nil
     ) {
         self.id = url.standardizedFileURL.path
         self.name = name
@@ -46,6 +48,7 @@ public struct DeskItem: Identifiable, Hashable, Sendable {
         self.isPinned = isPinned
         self.isSettling = isSettling
         self.isPackage = isPackage
+        self.relativeParentPath = relativeParentPath
     }
 
     public var formattedSize: String {

@@ -12,7 +12,13 @@ struct FileGridView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                if viewModel.selectedSection == .all {
+                if viewModel.isSearching {
+                    sectionBlock(
+                        title: "Search Results",
+                        emptyText: "No matching files or folders",
+                        items: viewModel.filteredItems
+                    )
+                } else if viewModel.selectedSection == .all {
                     let desktopItems = viewModel.filteredItems.filter { $0.location == .desktop }
                     let vaultItems = viewModel.filteredItems.filter { $0.location == .vault }
 
@@ -133,9 +139,11 @@ private struct DeskItemTile: View {
                         .fill(isSelected ? Color.accentColor : Color.clear)
                 )
 
-            Text(item.isSettling ? "Syncing…" : item.formattedSize)
+            Text(subtitleText)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
         }
         .padding(8)
         .frame(maxWidth: .infinity)
@@ -154,14 +162,26 @@ private struct DeskItemTile: View {
             Button("Open", action: onOpen)
             Button("Quick Look", action: onQuickLook)
             Button("Reveal in Finder", action: onReveal)
-            Divider()
-            if item.location == .desktop {
-                Button("Move to Vault", action: onMoveToVault)
-                    .disabled(item.isSettling)
-                Button(item.isPinned ? "Unpin from Desktop" : "Pin to Desktop", action: onTogglePin)
-            } else {
-                Button("Restore to Desktop", action: onRestore)
+            if item.relativeParentPath == nil {
+                Divider()
+                if item.location == .desktop {
+                    Button("Move to Vault", action: onMoveToVault)
+                        .disabled(item.isSettling)
+                    Button(item.isPinned ? "Unpin from Desktop" : "Pin to Desktop", action: onTogglePin)
+                } else {
+                    Button("Restore to Desktop", action: onRestore)
+                }
             }
         }
+    }
+
+    private var subtitleText: String {
+        if item.isSettling {
+            return "Syncing…"
+        }
+        if let parent = item.relativeParentPath {
+            return "in \(parent)"
+        }
+        return item.formattedSize
     }
 }
