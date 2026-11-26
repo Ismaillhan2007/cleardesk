@@ -188,4 +188,47 @@ struct ClearDeskCoreTests {
         #expect(env.engine.search("Passwords").isEmpty)
         #expect(env.engine.search("hidden_dep").isEmpty)
     }
+
+    @Test("Moving files into folders is collision-safe and blocks self-containment")
+    func moveIntoFolderCollisionSafeAndBlocksSelfMove() throws {
+        let env = try makeIsolatedEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.tempRoot) }
+
+        let targetFolder = env.vault.appendingPathComponent("Projects")
+        try FileManager.default.createDirectory(at: targetFolder, withIntermediateDirectories: true)
+        try Data("existing".utf8).write(to: targetFolder.appendingPathComponent("Spec.pdf"))
+
+        let incoming = env.desktop.appendingPathComponent("Spec.pdf")
+        try Data("new".utf8).write(to: incoming)
+
+        let record = try env.engine.moveItem(incoming, intoFolder: targetFolder)
+        #expect(!FileManager.default.fileExists(atPath: incoming.path))
+        #expect(URL(fileURLWithPath: record.destinationPath).lastPathComponent == "Spec (2).pdf")
+        #expect(try String(contentsOf: targetFolder.appendingPathComponent("Spec.pdf"), encoding: .utf8) == "existing")
+        #expect(try String(contentsOf: targetFolder.appendingPathComponent("Spec (2).pdf"), encoding: .utf8) == "new")
+
+        // Moving a folder into itself or its own subfolder must fail
+        let childFolder = targetFolder.appendingPathComponent("Sub")
+        try FileManager.default.createDirectory(at: childFolder, withIntermediateDirectories: true)
+        #expect(throws: PathGuardError.self) {
+            try env.engine.moveItem(targetFolder, intoFolder: targetFolder)
+        }
+        #expect(throws: PathGuardError.self) {
+            try env.engine.moveItem(targetFolder, intoFolder: childFolder)
+        }
+    }
+
+    @Test("Delete blocks unauthorized paths and root folders")
+    func deleteEnforcesSecurityBoundaries() throws {
+        let env = try makeIsolatedEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.tempRoot) }
+
+        let outside = env.tempRoot.appendingPathComponent("Outside.txt")
+        try Data("keep".utf8).write(to: outside)
+
+        #expect(throws: PathGuardError.self) { try env.engine.deleteItem(outside) }
+        #expect(throws: PathGuardError.self) { try env.engine.deleteItem(env.desktop) }
+        #expect(throws: PathGuardError.self) { try env.engine.deleteItem(env.vault) }
+        #expect(FileManager.default.fileExists(atPath: outside.path))
+    }
 }

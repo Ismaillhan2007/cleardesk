@@ -147,6 +147,58 @@ public final class FileVaultEngine: @unchecked Sendable {
         return try moveFile(itemURL, from: vaultURL, to: desktopURL)
     }
 
+    /// Moves a file or folder (from Desktop or Vault) into a target folder inside Desktop or Vault.
+    @discardableResult
+    public func moveItem(_ sourceURL: URL, intoFolder destinationFolderURL: URL) throws -> MoveRecord {
+        let standardizedSource = sourceURL.standardizedFileURL
+        let standardizedFolder = destinationFolderURL.standardizedFileURL
+
+        guard fileManager.fileExists(atPath: standardizedSource.path) else {
+            throw PathGuardError.sourceDoesNotExist(standardizedSource.path)
+        }
+        if pathGuard.isIgnoredTransientFile(url: standardizedSource) {
+            throw PathGuardError.ignoredTransientFile(standardizedSource.lastPathComponent)
+        }
+
+        _ = try pathGuard.validateContainedInAuthorizedRoots(standardizedSource, fileManager: fileManager)
+        _ = try pathGuard.validateContainedInAuthorizedRoots(standardizedFolder, fileManager: fileManager)
+
+        let folderValues = try standardizedFolder.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey, .isSymbolicLinkKey])
+        guard folderValues.isDirectory == true, folderValues.isPackage != true, folderValues.isSymbolicLink != true else {
+            throw PathGuardError.invalidDestination("Destination is not a standard folder.")
+        }
+
+        let resolvedSource = standardizedSource.resolvingSymlinksInPath().path
+        let resolvedFolder = standardizedFolder.resolvingSymlinksInPath().path
+        let sourcePrefix = resolvedSource.hasSuffix("/") ? resolvedSource : resolvedSource + "/"
+
+        if resolvedFolder == resolvedSource || resolvedFolder.hasPrefix(sourcePrefix) {
+            throw PathGuardError.invalidDestination("Cannot move a folder into itself.")
+        }
+        if standardizedSource.deletingLastPathComponent().standardizedFileURL.path == standardizedFolder.path {
+            throw PathGuardError.invalidDestination("Item is already in this folder.")
+        }
+
+        let destination = try pathGuard.safeDestinationURL(
+            forName: standardizedSource.lastPathComponent,
+            in: standardizedFolder,
+            fileManager: fileManager
+        )
+
+        try fileManager.moveItem(at: standardizedSource, to: destination)
+        return MoveRecord(sourcePath: standardizedSource.path, destinationPath: destination.path)
+    }
+
+    /// Moves a file or folder inside Desktop or Vault to the native macOS Trash (safe, recoverable).
+    public func deleteItem(_ itemURL: URL) throws {
+        let standardized = itemURL.standardizedFileURL
+        guard fileManager.fileExists(atPath: standardized.path) else {
+            throw PathGuardError.sourceDoesNotExist(standardized.path)
+        }
+        _ = try pathGuard.validateContainedInAuthorizedRoots(standardized, fileManager: fileManager)
+        try fileManager.trashItem(at: standardized, resultingItemURL: nil)
+    }
+
     /// Reverses the most recent sweep batch back to Desktop using collision-safe naming.
     @discardableResult
     public func undoLastSweep() throws -> Int {

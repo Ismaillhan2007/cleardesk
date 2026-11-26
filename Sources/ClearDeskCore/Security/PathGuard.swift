@@ -6,6 +6,7 @@ public enum PathGuardError: Error, LocalizedError, Equatable, Sendable {
     case symlinkEscapeDetected(String)
     case ignoredTransientFile(String)
     case sourceDoesNotExist(String)
+    case invalidDestination(String)
 
     public var errorDescription: String? {
         switch self {
@@ -19,6 +20,8 @@ public enum PathGuardError: Error, LocalizedError, Equatable, Sendable {
             return "Skipped transient or iCloud placeholder file (\(name))."
         case .sourceDoesNotExist(let path):
             return "File no longer exists at \(path)."
+        case .invalidDestination(let reason):
+            return "Cannot move item: \(reason)"
         }
     }
 }
@@ -127,6 +130,23 @@ public struct PathGuard: Sendable {
                 throw PathGuardError.symlinkEscapeDetected(url.path)
             }
         }
+    }
+
+    /// Validates that `url` sits strictly inside either `desktopRoot` or `vaultRoot` (and is never the root itself).
+    public func validateContainedInAuthorizedRoots(_ url: URL, fileManager: FileManager = .default) throws -> URL {
+        let resolved = url.standardizedFileURL.resolvingSymlinksInPath().path
+        let desktopPath = desktopRoot.resolvingSymlinksInPath().path
+        let vaultPath = vaultRoot.resolvingSymlinksInPath().path
+
+        guard resolved != desktopPath && resolved != vaultPath else {
+            throw PathGuardError.outsideAuthorizedRoot(url.path)
+        }
+
+        if (try? validateContained(url, within: desktopRoot, fileManager: fileManager)) != nil {
+            return desktopRoot
+        }
+        try validateContained(url, within: vaultRoot, fileManager: fileManager)
+        return vaultRoot
     }
 
     /// Computes a collision-safe destination URL inside `directory` without ever overwriting an existing file.

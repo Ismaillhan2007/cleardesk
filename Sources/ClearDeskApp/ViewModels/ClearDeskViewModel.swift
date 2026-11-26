@@ -159,6 +159,55 @@ final class ClearDeskViewModel {
         }
     }
 
+    func availableTargetFolders(for item: DeskItem) -> [DeskItem] {
+        let sourceParentPath = item.url.deletingLastPathComponent().standardizedFileURL.path
+        return items.filter { candidate in
+            candidate.kind == .folder
+                && !candidate.isPackage
+                && candidate.id != item.id
+                && candidate.url.standardizedFileURL.path != sourceParentPath
+        }
+    }
+
+    func moveItem(_ item: DeskItem, into folder: DeskItem) {
+        do {
+            try engine.moveItem(item.url, intoFolder: folder.url)
+            refresh()
+            showHUD("Moved “\(item.name)” into “\(folder.name)”")
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func moveItemByPath(_ sourcePath: String, into folder: DeskItem) -> Bool {
+        let sourceURL = URL(fileURLWithPath: sourcePath).standardizedFileURL
+        guard sourceURL.path != folder.url.standardizedFileURL.path else {
+            return false
+        }
+        do {
+            try engine.moveItem(sourceURL, intoFolder: folder.url)
+            refresh()
+            showHUD("Moved “\(sourceURL.lastPathComponent)” into “\(folder.name)”")
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func deleteItem(_ item: DeskItem) {
+        do {
+            try engine.deleteItem(item.url)
+            if selectedItemID == item.id {
+                selectedItemID = nil
+            }
+            refresh()
+            showHUD("Moved “\(item.name)” to Trash")
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func undoLastSweep() {
         do {
             let restored = try engine.undoLastSweep()

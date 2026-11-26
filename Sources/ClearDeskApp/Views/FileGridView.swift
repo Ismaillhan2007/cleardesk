@@ -46,6 +46,13 @@ struct FileGridView: View {
             }
             return .ignored
         }
+        .onKeyPress(.delete) {
+            if let item = viewModel.selectedItem {
+                viewModel.deleteItem(item)
+                return .handled
+            }
+            return .ignored
+        }
     }
 
     @ViewBuilder
@@ -81,13 +88,17 @@ struct FileGridView: View {
                         DeskItemTile(
                             item: item,
                             isSelected: viewModel.selectedItemID == item.id,
+                            targetFolders: viewModel.availableTargetFolders(for: item),
                             onSelect: { viewModel.selectedItemID = item.id },
                             onOpen: { viewModel.openItem(item) },
                             onQuickLook: { viewModel.quickLook(item) },
                             onReveal: { viewModel.revealInFinder(item) },
                             onMoveToVault: { viewModel.moveToVault(item) },
                             onRestore: { viewModel.restoreToDesktop(item) },
-                            onTogglePin: { viewModel.togglePin(item) }
+                            onTogglePin: { viewModel.togglePin(item) },
+                            onMoveIntoFolder: { folder in viewModel.moveItem(item, into: folder) },
+                            onDropPathIntoFolder: { path in viewModel.moveItemByPath(path, into: item) },
+                            onDelete: { viewModel.deleteItem(item) }
                         )
                     }
                 }
@@ -99,6 +110,7 @@ struct FileGridView: View {
 private struct DeskItemTile: View {
     let item: DeskItem
     let isSelected: Bool
+    let targetFolders: [DeskItem]
     let onSelect: () -> Void
     let onOpen: () -> Void
     let onQuickLook: () -> Void
@@ -106,6 +118,15 @@ private struct DeskItemTile: View {
     let onMoveToVault: () -> Void
     let onRestore: () -> Void
     let onTogglePin: () -> Void
+    let onMoveIntoFolder: (DeskItem) -> Void
+    let onDropPathIntoFolder: (String) -> Bool
+    let onDelete: () -> Void
+
+    @State private var isDropTargeted = false
+
+    private var acceptsDrops: Bool {
+        item.kind == .folder && !item.isPackage
+    }
 
     var body: some View {
         VStack(spacing: 6) {
@@ -149,9 +170,28 @@ private struct DeskItemTile: View {
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+                .fill(
+                    isDropTargeted
+                        ? Color.accentColor.opacity(0.22)
+                        : (isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(isDropTargeted ? Color.accentColor : Color.clear, lineWidth: 2)
         )
         .contentShape(Rectangle())
+        .draggable(item.url.path)
+        .dropDestination(for: String.self) { droppedPaths, _ in
+            guard acceptsDrops, let firstPath = droppedPaths.first else {
+                return false
+            }
+            return onDropPathIntoFolder(firstPath)
+        } isTargeted: { targeted in
+            if acceptsDrops {
+                isDropTargeted = targeted
+            }
+        }
         .onTapGesture(count: 2) {
             onOpen()
         }
@@ -162,6 +202,21 @@ private struct DeskItemTile: View {
             Button("Open", action: onOpen)
             Button("Quick Look", action: onQuickLook)
             Button("Reveal in Finder", action: onReveal)
+            if !targetFolders.isEmpty {
+                Divider()
+                Menu("Move to Folder") {
+                    ForEach(targetFolders) { folder in
+                        Button {
+                            onMoveIntoFolder(folder)
+                        } label: {
+                            Label(
+                                "\(folder.name) (\(folder.location == .desktop ? "Desktop" : "Vault"))",
+                                systemImage: "folder"
+                            )
+                        }
+                    }
+                }
+            }
             if item.relativeParentPath == nil {
                 Divider()
                 if item.location == .desktop {
@@ -172,6 +227,8 @@ private struct DeskItemTile: View {
                     Button("Restore to Desktop", action: onRestore)
                 }
             }
+            Divider()
+            Button("Move to Trash", role: .destructive, action: onDelete)
         }
     }
 
